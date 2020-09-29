@@ -459,7 +459,9 @@ private:
   su2double C;
   su2double h_wm;    /*!< \brief The thickness of the wall model. This is also basically the exchange location */
   su2double a, b, k, m, n;  // constants
-
+  std::vector<su2double> f_int;
+  std::vector<su2double> y_wm;
+  su2double Re_tau;
   /*!
    * \brief Default constructor of the class, disabled.
    */

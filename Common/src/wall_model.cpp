@@ -28,8 +28,9 @@
 
 #include "../include/wall_model.hpp"
 #include "../../SU2_CFD/include/fluid_model.hpp"
-#include <Eigen/Core>
+#include <Eigen/Dense>
 
+typedef Eigen::ArrayXd Array;
 /* Prototypes for Lapack functions, if MKL or LAPACK is used. */
 #if defined (HAVE_MKL) || defined(HAVE_LAPACK)
 extern "C" void dgtsv_(int*, int*, passivedouble*, passivedouble*,
@@ -672,11 +673,6 @@ void CWallModelAPGLL::WallShearStressAndHeatFlux(const su2double tExchange,
   kOverCvWall   = (mu_wall*Cp/Pr_lam)/Cv;
 }
 
-void Chebyshevstuff() {
-
-  return;
-}
-
 CWallModelMixinglength::CWallModelMixinglength(CConfig      *config,
                                    const string &Marker_Tag)
   :  CWallModel(config) {
@@ -689,17 +685,62 @@ CWallModelMixinglength::CWallModelMixinglength(CConfig      *config,
   n = 1.3972;
 
   // ----------------------Chebyshev Transform for integral computation-----------------------//
-  int N = 16;
-  double Re_tau = 5200;
-  Eigen::VectorXd theta(N+1);
-  theta.array() = Eigen::ArrayXd::LinSpaced(N+1, 0, M_PI);
-  Eigen::VectorXd X = theta.array().cos();
-  Eigen::VectorXd Xi = Re_tau/2*(X.array()+1);
-  // Eigen::VectorXd lambda = k * Xi .* (1-(-(Xi/a).array().pow(m)).exp()...
-  //       ./(1+(Xi./(b*R_tau)).^n).^(1/n);
+  const int N = 1024;
+  Re_tau = 5200;
+  Array theta(N+1);
+  theta = Array::LinSpaced(N+1, 0, M_PI);
+  Array X = theta.cos();
+  Array Xi = Re_tau/2*(X+1);
 
+  Array num = k*Xi*(1-(-(Xi/a).pow(m)).exp());
+  Array dem = (1 + (Xi/(b*Re_tau)).pow(n)).pow(1/n);
+  Array lambda = num/dem;
+  Array f = -0.5/lambda.pow(2) + 0.5/lambda.pow(2)*(1 + 4*lambda.pow(2)*(1-Xi/Re_tau)).sqrt(); //might have Nan error during run
+  f *= Re_tau/2;
+  Eigen::VectorXd f_d = f.matrix();
 
+  Eigen::MatrixXd D(N+1, N+1); 
+  double ci, cj;
+  for (int i = 0; i < N+1; ++i) {
+    for (int j = 0; j < N+1; ++j) {
+      if (i == j) {
+        switch(i) {
+          case 0:
+            D(i,j) = (2.0*N*N + 1.0)/6;
+            break;
+          case N:
+            D(i,j) = -(2.0*N*N + 1.0)/6;
+            break;
+          default:
+            D(i,j) = -X(i)/(2.0*(1.0-X(i)*X(i)));
+        }
+      }
+      else {
+        if ((i == 0) || (i == N)) {
+          ci = 2;
+        }
+        else {
+          ci = 1;
+        }
+        if ((j == 0) || (j == N)) {
+          cj = 2;
+        }
+        else {
+          cj = 1;
+        }
+        D(i,j) = ci*std::pow(-1, i+j)/(cj*(X(i)-X(j)));
+      }
+    }
+  }
 
+  Eigen::VectorXd f_i = Eigen::VectorXd::Zero(N+1);
+  f_i.head(N) = D.block(0,0,N,N).lu().solve(f_d.head(N));
+
+  f_int = std::vector<su2double>{f_i.data(), f_i.data()+f_i.size()};
+  y_wm = std::vector<su2double>{Xi.data(), Xi.data() + Xi.size()};
+
+  sort(y_wm.begin(), y_wm.end());
+  sort(f_int.begin(), f_int.end());
   // -----------------------------------------------------------------------------------------//
 
   /* Retrieve the floating point information for this boundary marker
@@ -759,13 +800,12 @@ void CWallModelMixinglength::WallShearStressAndHeatFlux(const su2double tExchang
     /* Reichardt boundary layer analytical law
        fprime is the differentiation of the Reichardt law with repect to u_tau.
      */
-    const su2double fval = velExchange/u_tau0 - ((C - log(karman)/karman)*(1.0 - exp(-y_plus/11.0)
-                         - (y_plus/11.0)*exp(-0.33*y_plus))) - log(karman*y_plus + 1.0)/karman;
-    const su2double fprime = -velExchange/pow(u_tau0,2.0)
-                           + (- C + log(karman)/karman)*(-(1.0/11.0)*h_wm*exp(-0.33*y_plus)/nu_wall
-                           +                              (1.0/11.0)*h_wm*exp(-(1.0/11.0)*y_plus)/nu_wall
-                           +                              (1.0/33.0)*u_tau0*pow(h_wm,2.0)*exp(-0.33*y_plus)/pow(nu_wall, 2.0))
-                           - 1.0*h_wm/(nu_wall*(karman*y_plus + 1.0));
+    auto upper = upper_bound(y_wm.begin(), y_wm.end(), y_plus);
+    int index = distance(y_wm.begin(), upper);
+    const su2double fval = velExchange/u_tau0 - (f_int[index-1] + (y_plus - y_wm[index-1])*(f_int[index] - f_int[index-1])/(y_wm[index] - y_wm[index-1])); 
+    const su2double lambda = k*y_plus*(1-exp(-pow(y_plus/a, m)))/pow(1 + pow(y_plus/(b*Re_tau), n), 1.0/n);
+    const su2double f = -0.5/pow(lambda,2) + 0.5/pow(lambda, 2)*sqrt(1 + 4*pow(lambda,2)*(1-y_plus/Re_tau));
+    const su2double fprime = -velExchange/pow(u_tau0,2.0) - f*h_wm/nu_wall;
 
     /* Newton method */
     const su2double newton_step = fval/fprime;
