@@ -210,6 +210,9 @@ CNSSolver::CNSSolver(CGeometry *geometry, CConfig *config, unsigned short iMesh)
           case APGLL_WALL_MODEL:
             WallModel = new CWallModelAPGLL(config,WallFunctionsMarker_[0]);
             break;
+          case MIXINGLENGTH_WALL_MODEL:
+            WallModel = new CWallModelMixinglength(config,WallFunctionsMarker_[0]);
+            break;
 
           default:
             break;

@@ -3209,7 +3209,8 @@ void CConfig::SetPostprocessing(unsigned short val_software, unsigned short val_
       else if (Kind_WallFunctions[iMarker] == LOGARITHMIC_WALL_MODEL ||
                Kind_WallFunctions[iMarker] == EQUILIBRIUM_WALL_MODEL ||
                Kind_WallFunctions[iMarker] == ALGEBRAIC_WALL_MODEL   ||
-               Kind_WallFunctions[iMarker] == APGLL_WALL_MODEL){
+               Kind_WallFunctions[iMarker] == APGLL_WALL_MODEL       ||
+               Kind_WallFunctions[iMarker] == MIXINGLENGTH_WALL_MODEL){
         Wall_Models = true; break;
       }
     }
