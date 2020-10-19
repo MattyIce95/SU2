@@ -2713,6 +2713,7 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
        case LOGARITHMIC_WALL_MODEL:
        case ALGEBRAIC_WALL_MODEL:
        case APGLL_WALL_MODEL:
+       case MIXINGLENGTH_WALL_MODEL:
          CalculateWallModel = true;
          break;
 
