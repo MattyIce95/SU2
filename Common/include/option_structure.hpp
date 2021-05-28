@@ -944,7 +944,8 @@ enum ENUM_WALL_FUNCTIONS {
   LOGARITHMIC_WALL_MODEL    = 3,   /*!< \brief Reichardt's law-of-the-wall model for LES. */
   ALGEBRAIC_WALL_MODEL      = 4,    /*!< \brief Algebraic wall model for LES. */
   APGLL_WALL_MODEL          = 5,    /*!< \brief Adverse Pressure Gradient Wall Model for LES. */
-  MIXINGLENGTH_WALL_MODEL   = 6
+  TEMPLATE_WALL_MODEL       = 6,     /*!< \brief Template Wall Model */
+  MIXINGLENGTH_WALL_MODEL   = 7
 };
 static const MapType<string, ENUM_WALL_FUNCTIONS> Wall_Functions_Map = {
   MakePair("NO_WALL_FUNCTION",          NO_WALL_FUNCTION)
@@ -953,6 +954,7 @@ static const MapType<string, ENUM_WALL_FUNCTIONS> Wall_Functions_Map = {
   MakePair("LOGARITHMIC_WALL_MODEL",    LOGARITHMIC_WALL_MODEL)
   MakePair("ALGEBRAIC_WALL_MODEL",      ALGEBRAIC_WALL_MODEL)
   MakePair("APGLL_WALL_MODEL",          APGLL_WALL_MODEL)
+  MakePair("TEMPLATE_WALL_MODEL",       TEMPLATE_WALL_MODEL)
   MakePair("MIXINGLENGTH_WALL_MODEL",   MIXINGLENGTH_WALL_MODEL)
 };
 
@@ -2180,6 +2182,7 @@ enum ENUM_VERIFICATION_SOLUTIONS {
   TAYLOR_GREEN_VORTEX      = 32,       /*!< \brief Taylor Green Vortex. */
   INC_TAYLOR_GREEN_VORTEX  = 33,       /*!< \brief Incompressible Taylor Green Vortex (2D). */
   TURBULENT_CHANNEL        = 41,       /*!< \brief Turbulent channel at ReTau = 5200. */
+  PERIODIC_HILL            = 42,       /*!< \brief Turbulent Periodic Hill at Re = 10595. */
   MMS_NS_UNIT_QUAD         = 61,       /*!< \brief Manufactured solution of the laminar Navier Stokes equations on a unit quad. */
   MMS_NS_UNIT_QUAD_WALL_BC = 62,       /*!< \brief Manufactured solution of the laminar Navier Stokes equations on a unit quad with wall BC's. */
   MMS_NS_TWO_HALF_CIRCLES  = 63,       /*!< \brief Manufactured solution of the laminar Navier Stokes equations between two half circles. */
@@ -2197,6 +2200,7 @@ static const MapType<string, ENUM_VERIFICATION_SOLUTIONS> Verification_Solution_
   MakePair("TAYLOR_GREEN_VORTEX",      TAYLOR_GREEN_VORTEX)
   MakePair("INC_TAYLOR_GREEN_VORTEX",  INC_TAYLOR_GREEN_VORTEX)
   MakePair("TURBULENT_CHANNEL",        TURBULENT_CHANNEL)
+  MakePair("PERIODIC_HILL",            PERIODIC_HILL)
   MakePair("MMS_NS_UNIT_QUAD",         MMS_NS_UNIT_QUAD)
   MakePair("MMS_NS_UNIT_QUAD_WALL_BC", MMS_NS_UNIT_QUAD_WALL_BC)
   MakePair("MMS_NS_TWO_HALF_CIRCLES",  MMS_NS_TWO_HALF_CIRCLES)

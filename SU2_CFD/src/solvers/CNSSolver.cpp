@@ -168,7 +168,7 @@ CNSSolver::CNSSolver(CGeometry *geometry, CConfig *config, unsigned short iMesh)
     Alloc2D(nMarker, nVertex, TauWall_WMLES);
     Alloc2D(nMarker, nVertex, HeatFlux_WMLES);
     Alloc3D(nMarker, nVertex, nDim, FlowDirTan_WMLES);
-    Alloc3D(nMarker, nVertex, 2*nDim, VelTimeFilter_WMLES);
+    Alloc3D(nMarker, nVertex, nDim, VelTimeFilter_WMLES);
 
     /*--- Check if the Wall models or Wall functions are unique. ---*/
     /*--- OBS: All the markers must have the same wall model/function ---*/
@@ -210,10 +210,12 @@ CNSSolver::CNSSolver(CGeometry *geometry, CConfig *config, unsigned short iMesh)
           case APGLL_WALL_MODEL:
             WallModel = new CWallModelAPGLL(config,WallFunctionsMarker_[0]);
             break;
+          case TEMPLATE_WALL_MODEL:
+            WallModel = new CWallModelTemplate(config,WallFunctionsMarker_[0]);
+            break;
           case MIXINGLENGTH_WALL_MODEL:
             WallModel = new CWallModelMixinglength(config,WallFunctionsMarker_[0]);
             break;
-
           default:
             break;
         }
@@ -390,7 +392,7 @@ void CNSSolver::Preprocessing(CGeometry *geometry, CSolver **solver_container, C
 
   /*--- Compute the wall shear stress from the wall model ---*/
 
-  if (wall_models && (iRKStep==0)){
+  if (wall_models && (iRKStep==0) && (iMesh == MESH_0)){
     SU2_OMP_MASTER
     SetTauWallHeatFlux_WMLES1stPoint(geometry, solver_container, config, iRKStep);
     SU2_OMP_BARRIER
@@ -1780,7 +1782,7 @@ void CNSSolver::BC_WallModel(CGeometry      *geometry,
       /*-------------------------------------------------------*/
       /*-------------------------------------------------------*/
 
-      if (config->GetWall_Models() && nodes->GetTauWall_Flag(iPoint)){
+      if (nodes->GetTauWall_Flag(iPoint)){
 
         /*--- Weakly enforce the WM heat flux for the energy equation---*/
         su2double velWall_tan = 0.;
@@ -2692,12 +2694,16 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
   unsigned short iDim, iMarker;
   unsigned long iVertex, iPoint, Point_Normal;
   bool CalculateWallModel = false;
+  bool WMLESFirstPoint = config->GetWMLES_First_Point();
 
   su2double Vel[3], VelNormal, VelTang[3], VelTangMod, WallDist[3], WallDistMod;
-  su2double GradP[3], GradP_Normal, GradP_Tang[3], GradP_TangMod;
+  su2double GradP[3], GradP_TangMod;
   su2double T_Normal, P_Normal, mu_Normal;
   su2double *Coord, *Coord_Normal, UnitNormal[3], *Normal, Area;
   su2double TimeFilter = config->GetDelta_UnstTimeND()/ (config->GetTimeFilter_WMLES() / config->GetTime_Ref());
+
+  su2double Yplus_Max_Local = 0.0;
+  su2double Yplus_Min_Local = 1e9;
 
   for (iMarker = 0; iMarker < config->GetnMarker_All(); iMarker++) {
 
@@ -2713,6 +2719,7 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
        case LOGARITHMIC_WALL_MODEL:
        case ALGEBRAIC_WALL_MODEL:
        case APGLL_WALL_MODEL:
+       case TEMPLATE_WALL_MODEL:
        case MIXINGLENGTH_WALL_MODEL:
          CalculateWallModel = true;
          break;
@@ -2749,6 +2756,25 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
        /*--- Check if the node belongs to the domain (i.e, not a halo node) ---*/
        if (!geometry->node[iPoint]->GetDomain()) continue;
 
+       /*--- Check if the node has all boundary neighbors ---*/
+       const auto nNeigh = geometry->node[iPoint]->GetnPoint();
+       bool found_fluid = false;
+       for (unsigned short iNeigh = 0; iNeigh <= nNeigh; iNeigh++) {
+       
+         auto jPoint = iPoint;
+         if (iNeigh < nNeigh) jPoint = geometry->node[iPoint]->GetPoint(iNeigh);
+         bool boundary_j = geometry->node[jPoint]->GetPhysicalBoundary();
+         if (!boundary_j){
+           found_fluid = true;
+           break;
+         }
+       }
+
+       if(!found_fluid){
+        nodes->SetTauWall_Flag(iPoint,false);
+        continue;
+       }
+
        /*--- Get coordinates of the current vertex and nearest normal point ---*/
 
        Coord = geometry->node[iPoint]->GetCoord();
@@ -2769,7 +2795,7 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
        /*--- If an exchange location was found (donor element) use this information as the input
        for the wall model. Otherwise, the information of the 1st point off the wall is used. ---*/
 
-       if (geometry->vertex[iMarker][iVertex]->GetDonorFound()){
+       if (geometry->vertex[iMarker][iVertex]->GetDonorFound() && !WMLESFirstPoint){
 
          const su2double *doubleInfo = config->GetWallFunction_DoubleInfo(Marker_Tag);
          WallDistMod = doubleInfo[0];
@@ -2780,7 +2806,6 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
 
          for (iDim = 0; iDim < nDim; iDim++ ){
            Vel[iDim]   = 0.0;
-           GradP[iDim] = 0.0;
          }
 
          for (unsigned short iNode = 0; iNode < nDonors; iNode++) {
@@ -2792,7 +2817,6 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
 
            for (iDim = 0; iDim < nDim; iDim++ ){
              Vel[iDim] += donnorCoeff*nodes->GetSolution(donorPoint,iDim+1)/nodes->GetSolution(donorPoint,0);
-             GradP[iDim] += donnorCoeff*nodes->GetGradient_Primitive(donorPoint, nDim+1, iDim);
            }
          }
 
@@ -2820,12 +2844,15 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
 
          for (iDim = 0; iDim < nDim; iDim++){
            Vel[iDim]   = nodes->GetVelocity(Point_Normal,iDim);
-           GradP[iDim] = nodes->GetGradient_Primitive(Point_Normal, nDim+1, iDim);
          }
 
          P_Normal  = nodes->GetPressure(Point_Normal);
          T_Normal  = nodes->GetTemperature(Point_Normal);
          mu_Normal = nodes->GetLaminarViscosity(Point_Normal);
+       }
+
+       for (iDim = 0; iDim < nDim; iDim++){
+         GradP[iDim] = nodes->GetGradient_Primitive(iPoint, nDim+1, iDim);
        }
 
        /*--- Filter the input LES velocity ---*/
@@ -2835,23 +2862,19 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
 
          /*--- Old input LES velocity and GradP---*/
          su2double Vel_old[3]   = {0.,0.,0.};
-         su2double GradP_old[3] = {0.,0.,0.};
          for (iDim = 0; iDim < nDim; iDim++){
            Vel_old[iDim]   = VelTimeFilter_WMLES[iMarker][iVertex][iDim];
-           GradP_old[iDim] = VelTimeFilter_WMLES[iMarker][iVertex][iDim+nDim];
          }
-         /*--- Now filter the LES velocity and GradP ---*/
+         /*--- Now filter the LES velocity ---*/
          for (iDim = 0; iDim < nDim; iDim++){
-           Vel[iDim]   = (1.0 - TimeFilter) * Vel_old[iDim] + TimeFilter * Vel[iDim];
-           GradP[iDim] = (1.0 - TimeFilter) * GradP_old[iDim] + TimeFilter * GradP[iDim];
+           Vel[iDim] = (1.0 - TimeFilter) * Vel_old[iDim] + TimeFilter * Vel[iDim];
          }
        }
 
        /*--- Update input LES velocity if it is the 1st inner iteration---*/
        if (config->GetInnerIter() == 0){
          for (iDim = 0; iDim < nDim; iDim++){
-           VelTimeFilter_WMLES[iMarker][iVertex][iDim]      = Vel[iDim];
-           VelTimeFilter_WMLES[iMarker][iVertex][iDim+nDim] = GradP[iDim];
+           VelTimeFilter_WMLES[iMarker][iVertex][iDim] = Vel[iDim];
          }
        }
 
@@ -2881,29 +2904,47 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
        su2double dirTan[3] = {0.0, 0.0, 0.0};
        for(iDim = 0; iDim<nDim; iDim++) dirTan[iDim] = VelTang[iDim]/VelTangMod;
 
+       /*--- If it is pressure gradient driven flow
+        subtract the body force in all directions. ---*/
+       if (config->GetBody_Force()){
+         for (iDim = 0; iDim < nDim; iDim++)
+           GradP[iDim] -= config->GetBody_Force_Vector()[iDim];
+       }
+       
        /*--- Pressure gradient in the tangent direction: ---*/
-
-       GradP_Normal = 0.0;
-       for (iDim = 0; iDim < nDim; iDim++)
-         GradP_Normal += GradP[iDim] * UnitNormal[iDim];
-       for (iDim = 0; iDim < nDim; iDim++)
-         GradP_Tang[iDim] = GradP[iDim] - GradP_Normal*UnitNormal[iDim];
-
        GradP_TangMod = 0.0;
        for (iDim = 0; iDim < nDim; iDim++)
-         GradP_TangMod += GradP_Tang[iDim]*GradP_Tang[iDim];
-       GradP_TangMod = sqrt(GradP_TangMod);
-       GradP_TangMod = max(GradP_TangMod,1.e-25);
-
+         GradP_TangMod += GradP[iDim]*dirTan[iDim];
+              
        /* Compute the wall shear stress and heat flux vector using
         the wall model. */
        su2double tauWall, qWall, ViscosityWall, kOverCvWall;
+       bool converged;
        WallModel->UpdateExchangeLocation(WallDistMod);
        WallModel->WallShearStressAndHeatFlux(T_Normal, VelTangMod, mu_Normal, P_Normal, GradP_TangMod,
                                              Wall_HeatFlux, HeatFlux_Prescribed,
                                              Wall_Temperature, Temperature_Prescribed,
                                              GetFluidModel(), tauWall, qWall, ViscosityWall,
-                                             kOverCvWall);
+                                             kOverCvWall, converged);
+
+       if (!converged || std::isnan(tauWall)){
+         nodes->SetTauWall_Flag(iPoint,false);
+         continue;
+       }
+       
+       su2double rho    = nodes->GetDensity(iPoint) * config->GetDensity_Ref();
+       su2double u_tau  = sqrt(tauWall/rho);
+       su2double y_plus = rho * u_tau * WallDistMod / ViscosityWall; 
+
+       if (config->GetWMLES_Monitoring()){
+        if(y_plus < 0.1){
+         nodes->SetTauWall_Flag(iPoint,false);
+         continue;          
+        }
+       }
+       
+       Yplus_Max_Local = max(Yplus_Max_Local, y_plus);
+       Yplus_Min_Local = min(Yplus_Min_Local, y_plus);
 
        /*--- Compute the non-dimensional values if necessary. ---*/
        tauWall /= config->GetPressure_Ref();
@@ -2928,4 +2969,16 @@ void CNSSolver::SetTauWallHeatFlux_WMLES1stPoint(CGeometry *geometry, CSolver **
      }
    }
  }
+ su2double Yplus_Max_Global = Yplus_Max_Local;
+ su2double Yplus_Min_Global = Yplus_Min_Local;
+
+ SU2_MPI::Allreduce(&Yplus_Max_Local, &Yplus_Max_Global, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+ SU2_MPI::Allreduce(&Yplus_Min_Local, &Yplus_Min_Global, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+ if ((rank == MASTER_NODE) && (config->GetInnerIter()==0)){
+  cout << endl   << "------------------------ WMLES -----------------------" << endl;
+  cout << "Y+ (Max): " << setprecision(6) << Yplus_Max_Global << endl;
+  cout << "Y+ (Min): " << setprecision(6) << Yplus_Min_Global << endl;
+ }
+
 }

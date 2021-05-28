@@ -2721,6 +2721,12 @@ void CConfig::SetConfig_Options() {
   /* DESCRIPTION: Activate SA Quadratic Constitutive Relation, 2000 version */
   addBoolOption("SA_QCR", QCR, false);
 
+  /* DESCRIPTION: Activate WMLES Monitoring */
+  addBoolOption("WMLES_MONITORING", WMLES_Monitoring, false);  
+
+  /* DESCRIPTION: Activate WMLES 1st Point OFF WALL */
+  addBoolOption("WMLES_FIRST_POINT", WMLES_First_Point, false);
+
   /* DESCRIPTION: Compute Average for unsteady simulations */
   addBoolOption("COMPUTE_AVERAGE", Compute_Average, false);
 
@@ -3209,6 +3215,7 @@ void CConfig::SetPostprocessing(unsigned short val_software, unsigned short val_
       else if (Kind_WallFunctions[iMarker] == LOGARITHMIC_WALL_MODEL ||
                Kind_WallFunctions[iMarker] == EQUILIBRIUM_WALL_MODEL ||
                Kind_WallFunctions[iMarker] == ALGEBRAIC_WALL_MODEL   ||
+               Kind_WallFunctions[iMarker] == TEMPLATE_WALL_MODEL    ||
                Kind_WallFunctions[iMarker] == APGLL_WALL_MODEL       ||
                Kind_WallFunctions[iMarker] == MIXINGLENGTH_WALL_MODEL){
         Wall_Models = true; break;

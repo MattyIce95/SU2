@@ -37,4 +37,6 @@ inline CWallModelAlgebraic::~CWallModelAlgebraic(void){}
 
 inline CWallModelAPGLL::~CWallModelAPGLL(void){}
 
+inline CWallModelTemplate::~CWallModelTemplate(void){}
+
 inline CWallModelMixinglength::~CWallModelMixinglength(void){}
