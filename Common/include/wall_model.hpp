@@ -524,7 +524,8 @@ public:
                                   su2double       &tauWall,
                                   su2double       &qWall,
                                   su2double       &ViscosityWall,
-                                  su2double       &kOverCvWall) override;
+                                  su2double       &kOverCvWall,
+                                  bool            &converged) override;
 
 
  /*!

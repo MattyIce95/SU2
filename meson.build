@@ -151,6 +151,7 @@ elif get_option('enable-openblas')
 endif
 
 catch2_dep = declare_dependency(include_directories: 'externals/catch2/')
+su2_deps += declare_dependency(include_directories: '/mnt/g/eigen')
 
 # compile common library
 subdir('Common/src')

@@ -1025,7 +1025,8 @@ void CWallModelMixinglength::WallShearStressAndHeatFlux(const su2double tExchang
                                                   su2double       &tauWall,
                                                   su2double       &qWall,
                                                   su2double       &ViscosityWall,
-                                                  su2double       &kOverCvWall) {
+                                                  su2double       &kOverCvWall,
+                                                  bool            &converged) {
 
   /* Set the wall temperature, depending whether or not the temperature
      was prescribed and initialize the fluid model. */
@@ -1043,7 +1044,7 @@ void CWallModelMixinglength::WallShearStressAndHeatFlux(const su2double tExchang
   su2double u_tau = max(0.01*velExchange, 1.e-5);
 
   /* Set parameters for control of the Newton iteration. */
-  bool converged = false;
+  converged = false;
   unsigned short iter = 0, max_iter = 50;
   const su2double tol=1e-3;
 
