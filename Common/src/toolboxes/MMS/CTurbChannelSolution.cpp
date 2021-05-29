@@ -87,6 +87,10 @@ CTurbChannelSolution::CTurbChannelSolution(unsigned short val_nDim,
   Verification_Solution = config->GetVerification_Solution();
   if ( Verification_Solution == TURBULENT_CHANNEL)
     ReynoldsFriction = 5200.0;  // Friction Reynolds Number.
+    if(const char* env_Re = std::getenv("Reynolds")) {
+      ReynoldsFriction = std::atof(env_Re);
+      if(rank == 0) printf("Getting Re = %e from environment\n", ReynoldsFriction);
+    }
   else if (Verification_Solution == PERIODIC_HILL)
     ReynoldsFriction = 582.0;  // Friction Reynolds Number.
 

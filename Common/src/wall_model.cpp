@@ -944,7 +944,13 @@ CWallModelMixinglength::CWallModelMixinglength(CConfig      *config,
 
   // ----------------------Chebyshev Transform for integral computation-----------------------//
   const int N = 1024;
+
   Re_tau = 5200;
+  if(const char* env_Re = std::getenv("Reynolds")) {
+    Re_tau = std::atof(env_Re);
+    // if(rank == 0) printf("Getting Re = %e from environment\n", Re_tau);
+  }
+
   Array theta(N+1);
   theta = Array::LinSpaced(N+1, 0, M_PI);
   Array X = theta.cos();
